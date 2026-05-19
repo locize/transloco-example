@@ -1,0 +1,41 @@
+:host {
+  display: block;
+}
+
+.banner {
+  background: #1976d2;
+  color: white;
+  padding: 1rem 1.5rem;
+}
+
+.banner h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.content {
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+}
+
+.lead {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 0 1.5rem;
+}
+
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.lang-switch select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+}

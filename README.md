@@ -1,28 +1,124 @@
-# ngx-translate example with [locize](https://locize.com) integration
+# Transloco + [Locize](https://www.locize.com/?from=transloco-example) example
 
-Uses [Transloco](https://ngneat.github.io/transloco).
+A minimal Angular 21 sample showing how to load translations from
+[Locize](https://www.locize.com/?from=transloco-example) into
+[Transloco](https://jsverse.gitbook.io/transloco) and push missing keys
+back via a custom `TranslocoMissingHandler` — analogous to i18next's
+`saveMissing`.
 
-The most important part regarding [locize](https://locize.com) is [here](https://github.com/locize/transloco-example/blob/main/src/app/app.module.ts).
+Stack: Angular 21 · `@jsverse/transloco` 8 · [locizer](https://github.com/locize/locizer)
+6 · TypeScript 5.9 · standalone components, signals, control-flow templates.
 
-This example is also using [locizer](https://github.com/locize/locizer) to optionally send the missing keys to [locize](https://locize.com), so they can directly be translated... analogous to [this example](https://dev.to/adrai/unleash-the-full-power-of-angular-i18next-4b7o#save-missing).
+## Getting started
 
+1. Create a user account and a project at <https://www.locize.com/?from=transloco-example>,
+   then copy your project id and an API key from the developer page.
+2. Either set the values directly in
+   [`src/app/locize.config.ts`](src/app/locize.config.ts), or keep the
+   shipped demo-project credentials to try it out first (those are
+   intentionally public — every visitor hits the same demo).
+3. `npm install && npm run start` and <http://localhost:4200> opens.
 
-## Development server
+## What's in this example
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The app will automatically reload if you change any of the source files.
+### Loading translations — custom `TranslocoLoader`
 
-## Code scaffolding
+The Locize CDN serves translations at
+`https://{host}/{projectId}/{version}/{lang}/{namespace}`.
+[`TranslocoHttpLoader`](src/app/transloco-http-loader.ts) builds that
+URL from the values in [`locize.config.ts`](src/app/locize.config.ts)
+and calls `HttpClient.get` to fetch each language:
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+```ts
+@Injectable({ providedIn: 'root' })
+export class TranslocoHttpLoader implements TranslocoLoader {
+  private readonly http = inject(HttpClient)
 
-## Build
+  getTranslation(lang: string) {
+    return this.http.get<Translation>(
+      `${locizeHost}/${locizeConfig.projectId}/${locizeConfig.version}/${lang}/${locizeConfig.namespace}`,
+    )
+  }
+}
+```
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `-prod` flag for a production build.
+Wired in [`app.config.ts`](src/app/app.config.ts) via
+`provideTransloco({ loader, config })`:
 
-## Running unit tests
+```ts
+provideTransloco({
+  config: {
+    availableLangs: ['en', 'de'],
+    defaultLang: 'en',
+    fallbackLang: 'de',
+    reRenderOnLangChange: true,
+    prodMode: !isDevMode(),
+  },
+  loader: TranslocoHttpLoader,
+})
+```
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+### Pushing missing keys back — `TranslocoMissingHandler` + `locizer`
 
-## Further help
+[`LocizeMissingTranslationHandler`](src/app/transloco-missing-translation-handler.ts)
+calls `locizer.add(namespace, key, value)` whenever Transloco hits a key
+that isn't in the loaded JSON. The handler only writes when the active
+language equals the default (reference) language — avoiding pushes for
+target-language gaps that translators resolve naturally. `locizer` is
+initialised once at module load with the apiKey **only in dev** —
+production builds never carry the write-enabled credential.
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI README](https://github.com/angular/angular-cli/blob/master/README.md).
+```ts
+locizer.init({
+  projectId: locizeConfig.projectId,
+  apiKey: isDevMode() ? locizeConfig.apiKey : undefined,
+  version: locizeConfig.version,
+  cdnType: locizeConfig.cdnType,
+})
+
+@Injectable({ providedIn: 'root' })
+export class LocizeMissingTranslationHandler implements TranslocoMissingHandler {
+  handle(key: string, config: TranslocoConfig): string {
+    if (config.activeLang === config.defaultLang) {
+      locizer.add(locizeConfig.namespace, key, key)
+    }
+    return key
+  }
+}
+```
+
+Registered via `provideTranslocoMissingHandler(LocizeMissingTranslationHandler)`.
+
+### Locize CDN endpoint
+
+Locize ships two CDN infrastructures (full comparison at
+[CDN types: Standard vs. Pro](https://www.locize.com/docs/integration/cdn-types-standard-vs-pro?from=transloco-example)):
+
+- **Standard CDN** at `api.lite.locize.app` — BunnyCDN-backed, free for
+  generous monthly volumes, 1-hour fixed cache, public-only. Default
+  for newly created Locize projects.
+- **Pro CDN** at `api.locize.app` — CloudFront-backed, paid, supports
+  private downloads, custom caching, namespace backups.
+
+Both serve the same URL shape. The example picks the host from
+`cdnType` in [`src/app/locize.config.ts`](src/app/locize.config.ts) (the
+shipped demo project lives on the Pro CDN).
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm start` | Dev server at <http://localhost:4200> with HMR |
+| `npm run build` | Production build into `dist/` |
+| `npm run watch` | Development build, rebuilt on source changes |
+
+## Related
+
+- [Transloco documentation](https://jsverse.gitbook.io/transloco)
+- [Locize platform docs](https://www.locize.com/docs?from=transloco-example)
+- [`locizer`](https://github.com/locize/locizer) — lightweight client for Locize
+- ngx-translate alternative:
+  [ngx-translate-example](https://github.com/locize/ngx-translate-example)
+- Angular + i18next alternative:
+  [angular-i18next](https://github.com/Romanchuk/angular-i18next),
+  [Locize Angular tutorial](https://www.locize.com/blog/angular-i18next?from=transloco-example)
